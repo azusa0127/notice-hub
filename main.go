@@ -1,37 +1,51 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"encoding/json"
 	"log"
+	"os"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/azusa0127/notice-hub/sms/twilio"
+	"github.com/sendgrid/sendgrid-go"
 )
 
-// MyEvent is the event REQUEST struct
-type MyEvent struct {
-	Name string `json:"What is your name?"`
-	Age  int    `json:"How old are you?"`
+// EventRequest is the event REQUEST struct
+type EventRequest struct {
+	Body     string            `json:"body"`
+	Headers  map[string]string `json:"headers"`
+	Method   string            `json:"httpMethod"`
+	Path     string            `json:"path"`
+	Params   map[string]string `json:"quepathParameters"`
+	Resource string            `json:"reWithSMSRequestsource"`
 }
 
-// MyResponse is the event RESPONSE struct
-type MyResponse struct {
-	Message string `json:"Answer"`
-	Count   int    `json:"Invocation count"`
+// EventResponse is the event RESPONSE struct
+type EventResponse struct {
+	Base64 bool   `json:"isBase64Encoded"`
+	Status int    `json:"statusCode"`
+	Body   string `json:"body"`
 }
 
-var invokeCount = 0
-var initialized = false
+var sendGridSendClient *sendgrid.Client
+var twilioSendClient *twilio.SendClient
 
 func init() {
-	initialized = true
+	sendGridSendClient = sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
+	twilioSendClient = twilio.NewSendClient(os.Getenv("TWILIO_ACCOUNT_SID"), os.Getenv("TWILIO_AUTH_TOKEN"))
 }
 
 // HandleLambdaEvent is the AWS Lambda Hanler function
-func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
-	if initialized {
-		log.Println("Hanlder is initialized")
-	}
-	return MyResponse{Message: fmt.Sprintf("%s is %d years old!", event.Name, event.Age), Count: invokeCount}, nil
+func HandleLambdaEvent(event EventRequest) (EventResponse, error) {
+	// Context set with 5 seconds timeout
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+
+	txt, _ := json.MarshalIndent(event, "", "  ")
+	msg := string(txt)
+	log.Println(msg)
+	return EventResponse{Body: msg}, nil
 }
 
 func main() {
